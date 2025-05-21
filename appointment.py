@@ -49,7 +49,7 @@ class Appointment(AppointmentCreate):
 app = FastAPI()
 
 # --- User Endpoints ---
-user_router = APIRouter(prefix="/users", tags=["users"])
+user_router = APIRouter(prefix="/clients", tags=["clients"])
 
 @user_router.post("", response_model=User, status_code=status.HTTP_201_CREATED)
 def create_user(user: UserCreate):
