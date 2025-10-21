@@ -1,8 +1,9 @@
+# uvicorn book:app
 from fastapi import FastAPI, HTTPException, Depends, Path, Response, status
 from pydantic import BaseModel
 from typing import List, Optional
+from contextlib import asynccontextmanager
 import csv
-
 # --- Pydantic models --------------------------------------
 
 class Book(BaseModel):
@@ -23,31 +24,39 @@ class BookUpdate(BaseModel):
 
 # --- App initialization -----------------------------------
 
-app = FastAPI(title="Book Library API", version="1.0")
-
 books: List[Book] = []
 
-@app.on_event("startup")
-def load_books():
-    global books
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     try:
         with open("books.csv", newline="", encoding="utf-8") as f:
             reader = csv.DictReader(f)
-            books.clear()
-            books.extend([
-                Book(
-                    id=int(r["id"]),
-                    publish_year=int(r["publish_year"]),
-                    author=r["author"],
-                    genre=r["genre"],
-                    title=r["title"],
-                )
-                for r in reader
-            ])
+            for r in reader:
+                try:
+                    books.append(Book(
+                        id=int(r["id"]),
+                        publish_year=int(r["publish_year"]),
+                        author=r["author"].strip(),
+                        genre=r["genre"].strip(),
+                        title=r["title"].strip(),
+                    ))
+                except ValueError as e:
+                    print(f"⚠️ Skipping row due to error: {e} → {r}")
     except FileNotFoundError:
         print("⚠️ books.csv not found. Starting with an empty list.")
 
+    yield
+    books.clear()
+
+
+app = FastAPI(title="Book Library API", version="1.0", lifespan=lifespan)
+
+
 # --- Routes -----------------------------------------------
+
+@app.get("/books/count", response_model=int)
+def count_books():
+    return len(books)
 
 @app.get("/books", response_model=List[Book])
 def get_books():
